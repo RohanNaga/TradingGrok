@@ -3,8 +3,9 @@
     "builder": "DOCKERFILE"
   },
   "deploy": {
-    "startCommand": "python main.py",
+    "startCommand": "python main.py bot-only",
     "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 3
+    "restartPolicyMaxRetries": 3,
+    "cronSchedule": "50 12 * * 1-5"
   }
 }

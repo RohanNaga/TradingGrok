@@ -6,6 +6,7 @@ from .grok_analyzer import GrokAnalyzer
 from .alpaca_trader import AlpacaTrader
 from .config import Config
 from .logger import setup_logger
+from .market_calendar import MarketCalendar
 
 logger = setup_logger("trading_bot")
 
@@ -21,11 +22,17 @@ class TradingBot:
         self.trading_active = False
         self.last_analysis = None
         self.est = pytz.timezone('US/Eastern')
+        self.market_calendar = MarketCalendar()
         
     async def start(self):
         """Start the trading bot"""
         logger.info("Starting TradingGrok AI Trading Bot")
         logger.info(f"Paper Trading Mode: {self.config.PAPER_TRADING}")
+        
+        # Check if we should run today
+        if not self.market_calendar.should_run_today():
+            logger.info("Market is closed or outside trading hours. Shutting down.")
+            return
         
         self.trading_active = True
         
@@ -51,13 +58,30 @@ class TradingBot:
         
         while self.trading_active:
             try:
+                # Check if market is still open
+                minutes_left = self.market_calendar.minutes_until_close()
+                if minutes_left is None:
+                    logger.info("Market is closed. Shutting down.")
+                    self.trading_active = False
+                    break
+                
+                logger.info(f"Market closes in {minutes_left} minutes")
+                
+                # Stop trading 5 minutes before market close
+                if minutes_left <= 5:
+                    logger.info("Less than 5 minutes until market close. Stopping trading.")
+                    self.trading_active = False
+                    break
+                
                 if self.is_trading_window():
                     logger.info("In trading window - executing trading cycle")
                     await self.execute_trading_cycle()
                 else:
                     logger.debug("Outside trading window - sleeping")
                 
-                await asyncio.sleep(self.config.ANALYSIS_INTERVAL)
+                # Sleep for the analysis interval or until 5 min before close, whichever is shorter
+                sleep_minutes = min(self.config.ANALYSIS_INTERVAL / 60, minutes_left - 5)
+                await asyncio.sleep(sleep_minutes * 60)
                 
             except asyncio.CancelledError:
                 logger.info("Trading loop cancelled")

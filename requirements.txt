@@ -8,3 +8,4 @@ pandas
 numpy
 aiofiles
 pydantic
+pandas-market-calendars

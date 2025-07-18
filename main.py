@@ -63,11 +63,8 @@ def create_app():
 
 def run_bot_only():
     """Run just the trading bot without web interface"""
-    async def main():
-        bot = TradingBot()
-        await bot.start()
-    
-    asyncio.run(main())
+    from src.scheduler import main as scheduler_main
+    asyncio.run(scheduler_main())
 
 def run_web_server(host: str = "0.0.0.0", port: int = 8000):
     """Run the web server with dashboard"""
