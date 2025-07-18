@@ -109,7 +109,7 @@ class GrokAnalyzer:
                         "content": prompt
                     }
                 ],
-                "model": "grok-beta",
+                "model": "grok-4-latest",
                 "stream": False,
                 "temperature": 0.3
             }
