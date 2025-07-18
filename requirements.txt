@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+alpaca-trade-api
+httpx
+python-dotenv
+pytz
+pandas
+numpy
+aiofiles
+pydantic
