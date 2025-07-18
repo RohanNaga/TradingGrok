@@ -1,5 +1,7 @@
 import asyncio
 import uvicorn
+import signal
+import sys
 from contextlib import asynccontextmanager
 from src.trading_bot import TradingBot
 from src.web_dashboard import WebDashboard
@@ -10,10 +12,19 @@ logger = setup_logger("main")
 
 # Global trading bot instance
 trading_bot = None
+shutdown_event = asyncio.Event()
 
 @asynccontextmanager
 async def lifespan(app):
-    global trading_bot
+    global trading_bot, shutdown_event
+    
+    # Setup signal handlers
+    def signal_handler(sig, frame):
+        logger.info(f"Received signal {sig}, initiating graceful shutdown...")
+        shutdown_event.set()
+    
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
     
     # Startup
     logger.info("Starting TradingGrok application...")
@@ -26,6 +37,7 @@ async def lifespan(app):
     
     # Shutdown
     logger.info("Shutting down TradingGrok application...")
+    shutdown_event.set()
     if trading_bot:
         await trading_bot.stop()
     

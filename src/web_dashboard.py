@@ -26,6 +26,10 @@ class WebDashboard:
         self.setup_routes()
     
     def setup_routes(self):
+        @self.app.get("/health")
+        async def health():
+            return {"status": "healthy", "service": "TradingGrok"}
+        
         @self.app.get("/", response_class=HTMLResponse)
         async def dashboard(username: str = Depends(authenticate)):
             return self.get_dashboard_html()

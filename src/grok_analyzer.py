@@ -104,7 +104,7 @@ class GrokAnalyzer:
                 return None
                 
             if not self.client:
-                self.client = httpx.AsyncClient(timeout=30.0)
+                self.client = httpx.AsyncClient(timeout=60.0)
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json"

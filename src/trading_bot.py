@@ -46,6 +46,9 @@ class TradingBot:
         
     async def run_trading_loop(self):
         """Main trading loop"""
+        # Wait a bit before starting the first cycle to allow services to initialize
+        await asyncio.sleep(5)
+        
         while self.trading_active:
             try:
                 if self.is_trading_window():
@@ -56,6 +59,9 @@ class TradingBot:
                 
                 await asyncio.sleep(self.config.ANALYSIS_INTERVAL)
                 
+            except asyncio.CancelledError:
+                logger.info("Trading loop cancelled")
+                break
             except Exception as e:
                 logger.error(f"Error in trading loop: {e}")
                 await asyncio.sleep(60)
