@@ -10,7 +10,10 @@ class GrokAnalyzer:
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.base_url = "https://api.x.ai/v1/chat/completions"
-        self.client = httpx.AsyncClient(timeout=30.0)
+        self.client = None
+        
+        if not self.api_key:
+            logger.error("Grok API key is missing!")
         
     async def analyze_market(self) -> Optional[Dict]:
         """
@@ -26,7 +29,10 @@ class GrokAnalyzer:
             return await self.format_trades(response)
             
         except Exception as e:
-            logger.error(f"Error in market analysis: {e}")
+            logger.error(f"Error in market analysis: {str(e)}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return None
     
     def _build_analysis_prompt(self) -> str:
@@ -93,6 +99,12 @@ class GrokAnalyzer:
         Make API call to Grok
         """
         try:
+            if not self.api_key:
+                logger.error("Cannot call Grok API - API key is missing")
+                return None
+                
+            if not self.client:
+                self.client = httpx.AsyncClient(timeout=30.0)
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json"
@@ -128,7 +140,10 @@ class GrokAnalyzer:
                 return None
                 
         except Exception as e:
-            logger.error(f"Error calling Grok API: {e}")
+            logger.error(f"Error calling Grok API: {str(e)}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return None
     
     async def format_trades(self, grok_response: str) -> Optional[Dict]:
@@ -191,4 +206,5 @@ class GrokAnalyzer:
     
     async def close(self):
         """Close the HTTP client"""
-        await self.client.aclose()
+        if self.client:
+            await self.client.aclose()
