@@ -64,19 +64,43 @@ class AlpacaTrader:
             qty = trade_signal["qty"]
             
             if self._can_execute_trade(symbol, side, qty):
-                order = self.api.submit_order(
-                    symbol=symbol,
-                    qty=qty,
-                    side=side,
-                    type=trade_signal.get("type", "market"),
-                    time_in_force=trade_signal.get("time_in_force", "day"),
-                    limit_price=trade_signal.get("limit_price") if trade_signal.get("type") == "limit" else None
-                )
-                
-                logger.info(f"Order submitted: {symbol} {side} {qty} shares")
-                
-                if "stop_loss" in trade_signal:
-                    self._set_stop_loss(symbol, qty, trade_signal["stop_loss"], side)
+                # Use bracket orders for buy orders with stop loss to avoid wash trade issues
+                if side == "buy" and "stop_loss" in trade_signal:
+                    order_params = {
+                        "symbol": symbol,
+                        "qty": qty,
+                        "side": side,
+                        "type": trade_signal.get("type", "market"),
+                        "time_in_force": trade_signal.get("time_in_force", "day"),
+                        "order_class": "bracket",
+                        "stop_loss": {"stop_price": trade_signal["stop_loss"]}
+                    }
+                    
+                    # Add limit price if it's a limit order
+                    if trade_signal.get("type") == "limit":
+                        order_params["limit_price"] = trade_signal.get("limit_price")
+                    
+                    # Add take profit if provided
+                    if "target_price" in trade_signal:
+                        order_params["take_profit"] = {"limit_price": trade_signal["target_price"]}
+                    
+                    order = self.api.submit_order(**order_params)
+                    logger.info(f"Bracket order submitted: {symbol} {side} {qty} shares with stop loss at ${trade_signal['stop_loss']}")
+                else:
+                    # Regular order without bracket
+                    order_params = {
+                        "symbol": symbol,
+                        "qty": qty,
+                        "side": side,
+                        "type": trade_signal.get("type", "market"),
+                        "time_in_force": trade_signal.get("time_in_force", "day")
+                    }
+                    
+                    if trade_signal.get("type") == "limit":
+                        order_params["limit_price"] = trade_signal.get("limit_price")
+                    
+                    order = self.api.submit_order(**order_params)
+                    logger.info(f"Order submitted: {symbol} {side} {qty} shares")
                 
                 return True
                 
@@ -117,23 +141,12 @@ class AlpacaTrader:
             return False
     
     def _set_stop_loss(self, symbol: str, qty: int, stop_price: float, original_side: str):
-        """Set stop loss order"""
-        try:
-            stop_side = "sell" if original_side == "buy" else "buy"
-            
-            stop_order = self.api.submit_order(
-                symbol=symbol,
-                qty=qty,
-                side=stop_side,
-                type="stop",
-                time_in_force="gtc",
-                stop_price=stop_price
-            )
-            
-            logger.info(f"Stop loss set for {symbol}: {stop_side} {qty} shares at ${stop_price}")
-            
-        except Exception as e:
-            logger.error(f"Error setting stop loss for {symbol}: {e}")
+        """
+        Set stop loss order - DEPRECATED
+        Note: This method is deprecated due to wash trade detection issues.
+        Use bracket orders instead when placing buy orders with stop loss.
+        """
+        logger.warning(f"_set_stop_loss is deprecated. Use bracket orders for {symbol} to avoid wash trade issues.")
     
     def get_open_orders(self) -> List[Dict]:
         """Get all open orders"""
