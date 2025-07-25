@@ -156,16 +156,16 @@ CURRENT POSITIONS ({len(current_positions)} total, ${total_position_value:,.2f} 
         - Confidence level and urgency
         
         Format as JSON:
-        {{
-            "market_overview": {{
+        {{{{
+            "market_overview": {{{{
                 "sentiment": "EXTREMELY_BULLISH/BULLISH/BEARISH/EXTREMELY_BEARISH",
                 "key_catalysts": ["specific recent news/events"],
                 "dominant_theme": "AI boom/Fed pivot/Earnings season/etc",
                 "risk_level": "AGGRESSIVE/MODERATE/CONSERVATIVE",
                 "portfolio_analysis": "Assessment of current positions and overall strategy"
-            }},
+            }}}},
             "actions": [
-                {{
+                {{{{
                     "symbol": "STOCK_SYMBOL",
                     "action": "OPEN/ADD/REDUCE/CLOSE",
                     "current_qty": 0,
@@ -183,23 +183,23 @@ CURRENT POSITIONS ({len(current_positions)} total, ${total_position_value:,.2f} 
                     "confidence": 0.85,
                     "urgency": "IMMEDIATE/HIGH/MEDIUM/LOW",
                     "reasoning": "Detailed explanation of this specific action"
-                }}
+                }}}}
             ]
-        }}
+        }}}}
         
         EXAMPLE ACTIONS:
         
         📈 OPEN: Start new TSLA position
-        {"symbol": "TSLA", "action": "OPEN", "current_qty": 0, "target_qty": 50, "qty_change": 50}
+        {{"symbol": "TSLA", "action": "OPEN", "current_qty": 0, "target_qty": 50, "qty_change": 50}}
         
         🔥 ADD: Increase existing NVDA position  
-        {"symbol": "NVDA", "action": "ADD", "current_qty": 45, "target_qty": 70, "qty_change": 25}
+        {{"symbol": "NVDA", "action": "ADD", "current_qty": 45, "target_qty": 70, "qty_change": 25}}
         
         📉 REDUCE: Trim AAPL position
-        {"symbol": "AAPL", "action": "REDUCE", "current_qty": 78, "target_qty": 40, "qty_change": -38}
+        {{"symbol": "AAPL", "action": "REDUCE", "current_qty": 78, "target_qty": 40, "qty_change": -38}}
         
         🚪 CLOSE: Exit entire META position
-        {"symbol": "META", "action": "CLOSE", "current_qty": 25, "target_qty": 0, "qty_change": -25}
+        {{"symbol": "META", "action": "CLOSE", "current_qty": 25, "target_qty": 0, "qty_change": -25}}
         
         ⚠️  CRITICAL: Always include current_qty, target_qty, and qty_change for each action!
         
