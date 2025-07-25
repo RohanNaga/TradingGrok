@@ -13,6 +13,14 @@ logger = setup_logger("trading_bot")
 class TradingBot:
     def __init__(self):
         self.config = Config()
+        
+        # Validate configuration before starting
+        try:
+            self.config.validate()
+        except ValueError as e:
+            logger.error(f"Configuration error: {e}")
+            raise
+            
         self.grok_analyzer = GrokAnalyzer(self.config.GROK_API_KEY)
         self.alpaca_trader = AlpacaTrader(
             self.config.ALPACA_API_KEY,
@@ -138,7 +146,6 @@ class TradingBot:
                 logger.error("Could not get account information")
                 return
             
-            current_positions = self.alpaca_trader.get_positions()
             logger.info(f"Current positions: {len(current_positions)}")
             
             for trade in analysis.get("trades", []):
@@ -195,37 +202,18 @@ class TradingBot:
             return False
     
     async def manage_existing_positions(self, positions: list):
-        """Manage existing positions - check for exits"""
+        """Manage existing positions - Grok now handles all position decisions"""
         try:
+            # Grok now makes all position management decisions through its actions
+            # This method is kept for compatibility but doesn't auto-exit positions
+            logger.debug(f"Position management delegated to Grok. Current positions: {len(positions)}")
             for position in positions:
                 symbol = position["symbol"]
                 unrealized_pl_pct = position.get("unrealized_plpc", 0)
-                
-                should_exit = False
-                exit_reason = ""
-                
-                if unrealized_pl_pct <= -0.05:  # 5% loss
-                    should_exit = True
-                    exit_reason = "Stop loss triggered"
-                elif unrealized_pl_pct >= 0.15:  # 15% gain
-                    should_exit = True
-                    exit_reason = "Take profit"
-                
-                if should_exit:
-                    exit_trade = {
-                        "symbol": symbol,
-                        "side": "sell" if position["side"] == "long" else "buy",
-                        "qty": abs(int(position["qty"])),
-                        "type": "market",
-                        "time_in_force": "day"
-                    }
-                    
-                    success = self.alpaca_trader.execute_trade(exit_trade)
-                    if success:
-                        logger.info(f"Exited position {symbol}: {exit_reason} (P&L: {unrealized_pl_pct:.2%})")
+                logger.debug(f"{symbol}: {unrealized_pl_pct:.2%} P&L")
                     
         except Exception as e:
-            logger.error(f"Error managing positions: {e}")
+            logger.error(f"Error in position management: {e}")
     
     def get_status(self) -> Dict:
         """Get current bot status"""

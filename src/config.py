@@ -13,6 +13,20 @@ class Config:
     MAX_POSITIONS = int(os.getenv("MAX_POSITIONS", "4"))
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     
+    @classmethod
+    def validate(cls):
+        """Validate required configuration"""
+        missing = []
+        if not cls.GROK_API_KEY:
+            missing.append("GROK_API_KEY")
+        if not cls.ALPACA_API_KEY:
+            missing.append("ALPACA_API_KEY")
+        if not cls.ALPACA_SECRET_KEY:
+            missing.append("ALPACA_SECRET_KEY")
+        
+        if missing:
+            raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+    
     ALPACA_BASE_URL = "https://paper-api.alpaca.markets" if PAPER_TRADING else "https://api.alpaca.markets"
     
     TRADING_HOURS = {

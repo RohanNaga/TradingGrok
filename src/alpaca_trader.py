@@ -22,6 +22,7 @@ class AlpacaTrader:
             account = self.api.get_account()
             return {
                 "account_value": float(account.portfolio_value),
+                "portfolio_value": float(account.portfolio_value),
                 "buying_power": float(account.buying_power),
                 "cash": float(account.cash),
                 "day_trade_buying_power": float(getattr(account, 'day_trade_buying_power', account.buying_power)),
@@ -111,16 +112,9 @@ class AlpacaTrader:
         return False
     
     def _can_execute_trade(self, symbol: str, side: str, qty: int) -> bool:
-        """Check if we can execute the trade"""
+        """Check if we can execute the trade - minimal safety checks only"""
         try:
-            current_positions = len(self.get_positions())
-            max_positions = 4
-            
-            if side == "buy" and current_positions >= max_positions:
-                position_exists = any(pos["symbol"] == symbol for pos in self.get_positions())
-                if not position_exists:
-                    logger.warning(f"Cannot open new position for {symbol}: Max positions ({max_positions}) reached")
-                    return False
+            # Removed position limits - Grok has full authority
             
             account = self.get_account_info()
             if not account:
