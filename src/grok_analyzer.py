@@ -12,9 +12,27 @@ class GrokAnalyzer:
         self.api_key = api_key
         self.base_url = "https://api.x.ai/v1/chat/completions"
         self.client = None
+        self.trade_errors = []  # Track recent trade errors for feedback
         
         if not self.api_key:
             logger.error("Grok API key is missing!")
+    
+    def add_trade_error(self, symbol: str, action: str, error_message: str):
+        """Add a trade error to be included in the next Grok prompt"""
+        error_data = {
+            "symbol": symbol,
+            "action": action,
+            "error": error_message,
+            "timestamp": datetime.now().isoformat()
+        }
+        self.trade_errors.append(error_data)
+        # Keep only the last 10 errors to avoid prompt bloat
+        self.trade_errors = self.trade_errors[-10:]
+        logger.info(f"Added trade error for Grok feedback: {symbol} {action} - {error_message}")
+    
+    def clear_trade_errors(self):
+        """Clear trade errors after they've been sent to Grok"""
+        self.trade_errors.clear()
         
     async def analyze_market(self, account_info: Optional[Dict] = None, current_positions: Optional[List] = None) -> Optional[Dict]:
         """
@@ -26,6 +44,9 @@ class GrokAnalyzer:
             response = await self._call_grok_api(prompt)
             if not response:
                 return None
+            
+            # Clear trade errors after sending them to Grok
+            self.clear_trade_errors()
                 
             return await self.format_trades(response, account_info)
             
@@ -71,13 +92,38 @@ PORTFOLIO VALUE: ${account_info.get('portfolio_value', 0):,.2f}"""
 CURRENT POSITIONS ({len(current_positions)} total, ${total_position_value:,.2f} deployed):
 {"".join(positions_list)}"""
 
+        # Format trade errors for feedback
+        errors_summary = ""
+        if self.trade_errors:
+            errors_list = []
+            for error in self.trade_errors:
+                errors_list.append(f"""
+  ❌ {error['symbol']} {error['action']}: {error['error']} (at {error['timestamp']})""")
+            
+            errors_summary = f"""
+        
+⚠️  RECENT TRADE EXECUTION ERRORS (Learn from these):
+{"".join(errors_list)}
+
+IMPORTANT: These errors show what went wrong in recent trades. Adjust your recommendations accordingly:
+- If "insufficient qty available", the actual position size is smaller than you thought
+- If "insufficient buying power", reduce position sizes or wait for settled funds
+- Update your understanding of current positions based on these errors"""
+
         return f"""
-        You are an AGGRESSIVE portfolio manager with complete authority over a ${account_info.get('account_value', 100000):,.0f} trading account.
+        You are an EXPERT AGGRESSIVE portfolio manager with complete authority over a ${account_info.get('account_value', 100000):,.0f} trading account.
         Current time: {current_time}
+        
+        🚀 PRIMARY OBJECTIVE: MAXIMIZE PROFITS AS FAST AS POSSIBLE WITHOUT MASSIVE LOSSES
+        - Your ONLY goal is to make as much money as possible as quickly as possible
+        - Take calculated risks that maximize returns while avoiding catastrophic losses
+        - Prioritize speed of profit generation over conservative approaches
+        - Use aggressive position sizing on high-conviction opportunities
+        - Exit long-term losing positions quickly to preserve capital for better opportunities
         
         {account_summary}
         
-        {positions_summary}
+        {positions_summary}{errors_summary}
         
         🎯 PORTFOLIO MANAGEMENT INSTRUCTIONS:
         
@@ -86,9 +132,18 @@ CURRENT POSITIONS ({len(current_positions)} total, ${total_position_value:,.2f} 
         3. USE EXACT QUANTITIES: Always specify current_qty (from positions above) and target_qty
         4. BE AGGRESSIVE: Use full buying power for high-conviction plays
         5. SCALE INTELLIGENTLY: Add to winners, trim losers, rotate based on catalysts
+
+        TRADING PHILOSOPHY: MAXIMUM PROFIT SPEED IS EVERYTHING. Act decisively on breaking news, earnings momentum, and fundamental catalysts. 
+        Take concentrated positions in high-conviction opportunities. Risk big to win big, but be strategic about risk management.
+        Every trade should maximize profit velocity while protecting against only truly massive losses that could destroy the account.
         
-        TRADING PHILOSOPHY: Act decisively on breaking news, earnings momentum, and fundamental catalysts. 
-        Take concentrated positions in high-conviction opportunities. Risk big to win big.
+        🔥 AGGRESSIVE LONG/SHORT STRATEGY:
+        - LONG overperforming stocks with strong catalysts and momentum (any size tech)
+        - SHORT overvalued stocks with negative catalysts, earnings misses, or declining fundamentals  
+        - Use cultural momentum for both directions (fade viral hype, short meme crashes)
+        - Leverage market inefficiencies and social sentiment extremes
+        - EXPLORE smaller tech companies with breakthrough technologies or viral adoption
+        - Consider non-tech only for extraordinary opportunities (85%+ confidence required)
         
         ANALYSIS PRIORITIES (in order):
         1. BREAKING NEWS & VIRAL CATALYSTS (Last 24-48 hours):
@@ -126,11 +181,16 @@ CURRENT POSITIONS ({len(current_positions)} total, ${total_position_value:,.2f} 
         
         STOCK RECOMMENDATIONS (provide 2-4 stocks with AGGRESSIVE sizing):
         
-        PRIORITY TARGETS:
-        - MEGA-CAPS: NVDA, AAPL, GOOGL, MSFT, AMZN, TSLA, META, AMD
-        - GROWTH/MOMENTUM: CRM, NFLX, ADBE, UBER, SHOP, SQ, PLTR, SNOW, SNAP, PINS
-        - CONSUMER/RETAIL: NKE, LULU, AEO, ANF, URBN, COST, TGT, HD, LOW
-        - MEME/SOCIAL MOMENTUM: Previous runners with new catalysts
+        PRIMARY FOCUS - TECH SECTOR (Any Size):
+        - LARGE-CAP TECH: NVDA, AAPL, GOOGL, MSFT, AMZN, TSLA, META, AMD, CRM, NFLX, ADBE
+        - MID-CAP TECH: PLTR, SNOW, UBER, SQ, SHOP, SNAP, PINS, ZM, DOCU, OKTA, NET, CRWD
+        - SMALL-CAP TECH: Emerging AI, cybersecurity, cloud, fintech, biotech companies
+        - TECH MOMENTUM: Any tech stock with strong catalysts regardless of market cap
+        
+        SECONDARY - NON-TECH (High Confidence Only 85%+):
+        - Only venture outside tech for exceptional opportunities with strong conviction
+        - Consumer brands with viral momentum, healthcare breakthroughs, energy transitions
+        - Must have compelling catalyst and 85%+ confidence to justify non-tech exposure
         
         PATTERN RECOGNITION FRAMEWORK:
         - NEWS MOMENTUM: How do similar companies react to comparable catalysts?
@@ -140,20 +200,31 @@ CURRENT POSITIONS ({len(current_positions)} total, ${total_position_value:,.2f} 
         - EVENT-DRIVEN OPPORTUNITIES: Earnings, launches, partnerships creating momentum
         
         YOUR PORTFOLIO MANAGEMENT ACTIONS:
-        You have FOUR action types available for each stock:
+        You have SIX action types available for each stock:
         
-        1. OPEN: Start a new position (current_qty=0, target_qty>0)
-        2. ADD: Increase existing position (target_qty > current_qty) 
-        3. REDUCE: Decrease existing position (target_qty < current_qty but > 0)
-        4. CLOSE: Exit entire position (target_qty=0)
+        LONG POSITIONS:
+        1. OPEN: Start a new LONG position (buy stock, current_qty=0, target_qty>0)
+        2. ADD: Increase existing LONG position (buy more shares)
+        3. REDUCE: Decrease LONG position (sell some shares, target_qty < current_qty but > 0)
+        4. CLOSE: Exit entire LONG position (sell all shares, target_qty=0)
+        
+        SHORT POSITIONS:
+        5. SHORT: Start a new SHORT position (sell short, current_qty=0, target_qty<0)
+        6. COVER: Close SHORT position (buy to cover, target_qty=0 from negative)
         
         For each action, specify:
-        - EXACT quantities (current_qty and target_qty)
+        - EXACT quantities (current_qty and target_qty - negative for short positions)
         - Entry/exit price ranges
-        - Stop loss and target prices
+        - Stop loss and target prices (inverted logic for shorts)
         - Position size as % of total portfolio
         - Specific catalyst driving this action
         - Confidence level and urgency
+        
+        IMPORTANT NOTES:
+        - Long positions: target_qty > 0 (you own shares)  
+        - Short positions: target_qty < 0 (you owe shares)
+        - For shorts: stop_loss > entry_price (protect against rising prices)
+        - For longs: stop_loss < entry_price (protect against falling prices)
         
         Format as JSON:
         {{{{
@@ -167,7 +238,7 @@ CURRENT POSITIONS ({len(current_positions)} total, ${total_position_value:,.2f} 
             "actions": [
                 {{{{
                     "symbol": "STOCK_SYMBOL",
-                    "action": "OPEN/ADD/REDUCE/CLOSE",
+                    "action": "OPEN/ADD/REDUCE/CLOSE/SHORT/COVER",
                     "current_qty": 0,
                     "target_qty": 100,
                     "qty_change": 100,
@@ -189,17 +260,23 @@ CURRENT POSITIONS ({len(current_positions)} total, ${total_position_value:,.2f} 
         
         EXAMPLE ACTIONS:
         
-        📈 OPEN: Start new TSLA position
+        📈 OPEN LONG: Start new TSLA long position
         {{"symbol": "TSLA", "action": "OPEN", "current_qty": 0, "target_qty": 50, "qty_change": 50}}
         
-        🔥 ADD: Increase existing NVDA position  
+        🔥 ADD LONG: Increase existing NVDA long position  
         {{"symbol": "NVDA", "action": "ADD", "current_qty": 45, "target_qty": 70, "qty_change": 25}}
         
-        📉 REDUCE: Trim AAPL position
+        📉 REDUCE LONG: Trim AAPL long position
         {{"symbol": "AAPL", "action": "REDUCE", "current_qty": 78, "target_qty": 40, "qty_change": -38}}
         
-        🚪 CLOSE: Exit entire META position
+        🚪 CLOSE LONG: Exit entire META long position
         {{"symbol": "META", "action": "CLOSE", "current_qty": 25, "target_qty": 0, "qty_change": -25}}
+        
+        🔻 SHORT: Start new NFLX short position (bearish)
+        {{"symbol": "NFLX", "action": "SHORT", "current_qty": 0, "target_qty": -30, "qty_change": -30}}
+        
+        📦 COVER: Close ROKU short position (buy to cover)
+        {{"symbol": "ROKU", "action": "COVER", "current_qty": -40, "target_qty": 0, "qty_change": 40}}
         
         ⚠️  CRITICAL: Always include current_qty, target_qty, and qty_change for each action!
         
@@ -211,7 +288,12 @@ CURRENT POSITIONS ({len(current_positions)} total, ${total_position_value:,.2f} 
         
         EXECUTE WITH CONVICTION: Only recommend trades you'd bet serious money on. 
         If market conditions don't warrant aggressive positions, recommend cash/wait.
-        Focus on liquid mega-caps and high-volume growth stocks only.
+        
+        STOCK SELECTION CRITERIA:
+        - PRIMARY: Any liquid tech stock (large, mid, small cap) with strong catalysts
+        - SECONDARY: Non-tech only if 85%+ confidence and exceptional opportunity
+        - LIQUIDITY: Minimum 500K daily volume to ensure proper execution
+        - CATALYSTS: Focus on stocks with clear fundamental or technical drivers
         
         REMEMBER: Stay alert for breaking news, cultural shifts, and viral moments that create trading opportunities!
         """
@@ -250,54 +332,61 @@ CURRENT POSITIONS ({len(current_positions)} total, ${total_position_value:,.2f} 
         
         for attempt in range(max_retries):
             try:
-                logger.info(f"Grok API call attempt {attempt + 1}/{max_retries}")
+                logger.info(f"🤖 Grok API call attempt {attempt + 1}/{max_retries} - Starting request...")
                 
+                start_time = datetime.now()
                 response = await self.client.post(
                     self.base_url,
                     headers=headers,
                     json=payload
                 )
+                duration = (datetime.now() - start_time).total_seconds()
                 
                 if response.status_code == 200:
                     result = response.json()
                     grok_response = result["choices"][0]["message"]["content"]
-                    logger.info("Grok API call successful")
+                    logger.info(f"✅ Grok API call SUCCESSFUL in {duration:.1f}s")
                     logger.info("=== GROK RESPONSE ===")
                     logger.info(grok_response)
                     logger.info("=== END GROK RESPONSE ===")
                     return grok_response
                 else:
-                    logger.error(f"Grok API error: {response.status_code} - {response.text}")
+                    logger.error(f"❌ Grok API error {response.status_code} after {duration:.1f}s: {response.text}")
                     if response.status_code >= 500 and attempt < max_retries - 1:
                         # Server error, retry with backoff
                         backoff_time = 2 ** attempt
-                        logger.info(f"Server error, retrying in {backoff_time} seconds...")
+                        logger.warning(f"🔄 Server error detected - RETRYING in {backoff_time} seconds (attempt {attempt + 2}/{max_retries})")
                         await asyncio.sleep(backoff_time)
                         continue
-                    return None
+                    else:
+                        logger.error(f"💀 Grok API failed permanently: {response.status_code} - giving up")
+                        return None
                     
             except (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.TimeoutException) as e:
-                logger.warning(f"Timeout error on attempt {attempt + 1}: {str(e)}")
+                duration = (datetime.now() - start_time).total_seconds() if 'start_time' in locals() else 0
+                logger.warning(f"⏰ TIMEOUT on attempt {attempt + 1} after {duration:.1f}s: {type(e).__name__}")
                 if attempt < max_retries - 1:
                     backoff_time = 2 ** attempt
-                    logger.info(f"Retrying in {backoff_time} seconds...")
+                    logger.warning(f"🔄 Timeout detected - RETRYING in {backoff_time} seconds (attempt {attempt + 2}/{max_retries})")
                     await asyncio.sleep(backoff_time)
                     continue
-                logger.error("All retry attempts failed due to timeout")
+                logger.error(f"💀 All {max_retries} retry attempts failed due to timeout - giving up")
                 return None
                 
             except Exception as e:
-                logger.error(f"Error calling Grok API on attempt {attempt + 1}: {str(e)}")
+                duration = (datetime.now() - start_time).total_seconds() if 'start_time' in locals() else 0
+                logger.error(f"💥 Unexpected error on attempt {attempt + 1} after {duration:.1f}s: {str(e)}")
                 logger.error(f"Exception type: {type(e).__name__}")
                 if attempt < max_retries - 1:
                     backoff_time = 2 ** attempt
-                    logger.info(f"Retrying in {backoff_time} seconds...")
+                    logger.warning(f"🔄 Unexpected error - RETRYING in {backoff_time} seconds (attempt {attempt + 2}/{max_retries})")
                     await asyncio.sleep(backoff_time)
                     continue
                 import traceback
-                logger.error(f"Final attempt failed. Traceback: {traceback.format_exc()}")
+                logger.error(f"💀 Final attempt failed after {max_retries} tries. Traceback: {traceback.format_exc()}")
                 return None
         
+        logger.error(f"💀 Exhausted all {max_retries} attempts - Grok API completely failed")
         return None
     
     async def format_trades(self, grok_response: str, account_info: Optional[Dict] = None) -> Optional[Dict]:
@@ -323,15 +412,33 @@ CURRENT POSITIONS ({len(current_positions)} total, ${total_position_value:,.2f} 
                 target_qty = action.get("target_qty", 0)
                 qty_change = action.get("qty_change", target_qty - current_qty)
                 
-                # Determine the trade side and quantity based on action
-                if action_type in ["OPEN", "ADD"] and qty_change > 0:
+                # Determine the trade side and quantity based on action type
+                if action_type == "OPEN" and qty_change > 0:
+                    # Opening long position
+                    side = "buy"
+                    trade_qty = abs(qty_change)
+                elif action_type == "ADD" and qty_change > 0:
+                    # Adding to long position
+                    side = "buy"
+                    trade_qty = abs(qty_change)
+                elif action_type == "SHORT" and qty_change < 0:
+                    # Opening short position (sell short)
+                    side = "sell"
+                    trade_qty = abs(qty_change)
+                elif action_type == "COVER" and qty_change > 0:
+                    # Covering short position (buy to cover)
                     side = "buy"
                     trade_qty = abs(qty_change)
                 elif action_type in ["REDUCE", "CLOSE"] and qty_change < 0:
+                    # Reducing/closing long position
                     side = "sell"  
                     trade_qty = abs(qty_change)
+                elif action_type in ["REDUCE", "CLOSE"] and qty_change > 0:
+                    # Reducing short position (partial cover)
+                    side = "buy"
+                    trade_qty = abs(qty_change)
                 else:
-                    logger.warning(f"Skipping invalid action for {symbol}: {action_type} with qty_change {qty_change}")
+                    logger.warning(f"Skipping invalid action for {symbol}: {action_type} with qty_change {qty_change} (current: {current_qty}, target: {target_qty})")
                     continue
                 
                 trade = {
@@ -352,21 +459,36 @@ CURRENT POSITIONS ({len(current_positions)} total, ${total_position_value:,.2f} 
                     "urgency": action.get("urgency", "MEDIUM")
                 }
                 
-                # Log detailed action reasoning
-                logger.info(f"=== PORTFOLIO ACTION: {action_type} {symbol} ===")
+                # Log detailed action reasoning with position type
+                position_type = "📈 LONG" if target_qty > 0 else "📉 SHORT" if target_qty < 0 else "💰 FLAT"
+                logger.info(f"=== {position_type} PORTFOLIO ACTION: {action_type} {symbol} ===")
                 logger.info(f"🔄 POSITION CHANGE: {current_qty} → {target_qty} shares ({qty_change:+d})")
                 logger.info(f"📈 CATALYST: {action.get('news_catalyst', 'N/A')}")
                 logger.info(f"💡 THESIS: {action.get('fundamental_thesis', 'N/A')}")
                 logger.info(f"📊 TECHNICAL: {action.get('technical_setup', 'N/A')}")
                 logger.info(f"💰 Price: ${action.get('entry_price_min', 'N/A')} - ${action.get('entry_price_max', 'N/A')}")
+                
+                # Handle target/stop logic for both long and short positions  
                 if action.get('target_price') and action.get('entry_price_max'):
-                    logger.info(f"🎯 Target: ${action['target_price']} ({((action['target_price']/action['entry_price_max']-1)*100):+.1f}%)")
+                    if target_qty > 0:  # Long position
+                        target_pct = ((action['target_price']/action['entry_price_max']-1)*100)
+                        logger.info(f"🎯 Long Target: ${action['target_price']} ({target_pct:+.1f}%)")
+                    elif target_qty < 0:  # Short position  
+                        target_pct = ((action['entry_price_max']/action['target_price']-1)*100)
+                        logger.info(f"🎯 Short Target: ${action['target_price']} ({target_pct:+.1f}% profit)")
+                        
                 if action.get('stop_loss') and action.get('entry_price_max'):
-                    logger.info(f"🛑 Stop: ${action['stop_loss']} ({((action['stop_loss']/action['entry_price_max']-1)*100):+.1f}%)")
+                    if target_qty > 0:  # Long position
+                        stop_pct = ((action['stop_loss']/action['entry_price_max']-1)*100)
+                        logger.info(f"🛑 Long Stop: ${action['stop_loss']} ({stop_pct:+.1f}%)")
+                    elif target_qty < 0:  # Short position
+                        stop_pct = ((action['entry_price_max']/action['stop_loss']-1)*100)
+                        logger.info(f"🛑 Short Stop: ${action['stop_loss']} ({stop_pct:+.1f}% loss)")
+                        
                 logger.info(f"📊 Target Position Size: {action.get('position_size_pct', 0)*100:.1f}%")
                 logger.info(f"🔥 Confidence: {action.get('confidence', 0.5)*100:.1f}%")
                 logger.info(f"⏱️  Urgency: {action.get('urgency', 'MEDIUM')}")
-                logger.info(f"📦 Trade Quantity: {side.upper()} {trade_qty} shares")
+                logger.info(f"📦 Trade Execution: {side.upper()} {trade_qty} shares")
                 logger.info(f"💭 Reasoning: {action.get('reasoning', 'N/A')}")
                 logger.info("=" * 70)
                 

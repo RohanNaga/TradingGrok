@@ -57,20 +57,23 @@ class AlpacaTrader:
             logger.error(f"Error getting positions: {e}")
             return []
     
-    def execute_trade(self, trade_signal: Dict) -> bool:
-        """Execute a trade based on the signal"""
+    def execute_trade(self, trade_signal: Dict) -> tuple[bool, str]:
+        """Execute a trade based on the signal - supports long and short positions"""
         try:
             symbol = trade_signal["symbol"]
             side = trade_signal["side"]
             qty = trade_signal["qty"]
+            action_type = trade_signal.get("action_type", "OPEN")
+            
+            logger.info(f"🎯 Executing {action_type}: {side.upper()} {qty} shares of {symbol}")
             
             if self._can_execute_trade(symbol, side, qty):
-                # Use bracket orders for buy orders with stop loss to avoid wash trade issues
-                if side == "buy" and "stop_loss" in trade_signal:
+                # Use bracket orders for entries with stop loss (both long and short)
+                if action_type in ["OPEN", "ADD"] and "stop_loss" in trade_signal:
                     order_params = {
                         "symbol": symbol,
                         "qty": qty,
-                        "side": side,
+                        "side": side,  # 'buy' for long, 'sell' for short
                         "type": trade_signal.get("type", "market"),
                         "time_in_force": trade_signal.get("time_in_force", "day"),
                         "order_class": "bracket",
@@ -86,9 +89,10 @@ class AlpacaTrader:
                         order_params["take_profit"] = {"limit_price": trade_signal["target_price"]}
                     
                     order = self.api.submit_order(**order_params)
-                    logger.info(f"Bracket order submitted: {symbol} {side} {qty} shares with stop loss at ${trade_signal['stop_loss']}")
+                    position_type = "LONG" if side == "buy" else "SHORT"
+                    logger.info(f"📈 Bracket {position_type} order: {symbol} {side} {qty} shares, stop: ${trade_signal['stop_loss']}")
                 else:
-                    # Regular order without bracket
+                    # Regular order without bracket (for exits or simple entries)
                     order_params = {
                         "symbol": symbol,
                         "qty": qty,
@@ -101,25 +105,40 @@ class AlpacaTrader:
                         order_params["limit_price"] = trade_signal.get("limit_price")
                     
                     order = self.api.submit_order(**order_params)
-                    logger.info(f"Order submitted: {symbol} {side} {qty} shares")
+                    position_type = "LONG" if side == "buy" else "SHORT"
+                    logger.info(f"📊 {position_type} order submitted: {symbol} {side} {qty} shares")
                 
-                return True
+                return True, "Success"
                 
         except Exception as e:
-            logger.error(f"Error executing trade for {trade_signal.get('symbol', 'unknown')}: {e}")
-            return False
+            error_msg = str(e)
+            logger.error(f"Error executing trade for {trade_signal.get('symbol', 'unknown')}: {error_msg}")
+            return False, error_msg
         
-        return False
+        return False, "Trade execution failed: unknown error"
     
     def _can_execute_trade(self, symbol: str, side: str, qty: int) -> bool:
         """Check if we can execute the trade - minimal safety checks only"""
         try:
-            # Removed position limits - Grok has full authority
-            
             account = self.get_account_info()
             if not account:
                 return False
             
+            # Check position availability for sell orders
+            if side == "sell":
+                current_positions = self.get_positions()
+                available_qty = 0
+                
+                for pos in current_positions:
+                    if pos["symbol"] == symbol:
+                        available_qty = int(abs(float(pos["qty"])))
+                        break
+                
+                if qty > available_qty:
+                    logger.error(f"Insufficient quantity for {symbol}: requested {qty}, available {available_qty}")
+                    return False
+            
+            # Check buying power for buy orders
             if side == "buy":
                 latest_trade = self.api.get_latest_trade(symbol)
                 if latest_trade and latest_trade.price:
@@ -140,6 +159,8 @@ class AlpacaTrader:
         Note: This method is deprecated due to wash trade detection issues.
         Use bracket orders instead when placing buy orders with stop loss.
         """
+        # Suppress unused parameter warnings - method is deprecated
+        _ = qty, stop_price, original_side
         logger.warning(f"_set_stop_loss is deprecated. Use bracket orders for {symbol} to avoid wash trade issues.")
     
     def get_open_orders(self) -> List[Dict]:

@@ -150,10 +150,16 @@ class TradingBot:
             
             for trade in analysis.get("trades", []):
                 if await self.should_execute_trade(trade, current_positions, account_info):
-                    success = self.alpaca_trader.execute_trade(trade)
+                    success, error_msg = self.alpaca_trader.execute_trade(trade)
                     if success:
                         logger.info(f"Successfully executed trade: {trade['symbol']} {trade['side']} {trade['qty']}")
                     else:
+                        # Add trade error to Grok analyzer for feedback
+                        self.grok_analyzer.add_trade_error(
+                            trade['symbol'], 
+                            trade.get('action_type', 'UNKNOWN'), 
+                            error_msg
+                        )
                         logger.warning(f"Failed to execute trade: {trade['symbol']}")
             
             await self.manage_existing_positions(current_positions)
