@@ -9,7 +9,7 @@ class Config:
     ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
     PAPER_TRADING = os.getenv("PAPER_TRADING", "true").lower() == "true"
     DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "admin123")
-    MAX_POSITION_SIZE = float(os.getenv("MAX_POSITION_SIZE", "0.25"))
+    MAX_POSITION_SIZE = float(os.getenv("MAX_POSITION_SIZE", "0.40"))
     MAX_POSITIONS = int(os.getenv("MAX_POSITIONS", "4"))
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     

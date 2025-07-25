@@ -123,15 +123,17 @@ class TradingBot:
                 logger.info("Market is closed - skipping cycle")
                 return
             
-            analysis = await self.grok_analyzer.analyze_market()
+            # Get account info and current positions to pass to analyzer
+            account_info = self.alpaca_trader.get_account_info()
+            current_positions = self.alpaca_trader.get_positions()
+            
+            analysis = await self.grok_analyzer.analyze_market(account_info, current_positions)
             if not analysis:
                 logger.warning("No analysis received from Grok")
                 return
             
             self.last_analysis = analysis
             logger.info(f"Received {len(analysis.get('trades', []))} trade recommendations")
-            
-            account_info = self.alpaca_trader.get_account_info()
             if not account_info:
                 logger.error("Could not get account information")
                 return
@@ -153,31 +155,39 @@ class TradingBot:
             logger.error(f"Error in trading cycle: {e}")
     
     async def should_execute_trade(self, trade: Dict, positions: list, account: Dict) -> bool:
-        """Determine if a trade should be executed"""
+        """Execute whatever Grok recommends - Grok has full authority over portfolio decisions"""
         try:
-            symbol = trade["symbol"]
+            symbol = trade.get("symbol", "")
+            action_type = trade.get("action_type", "OPEN")
             confidence = trade.get("confidence", 0.5)
+            urgency = trade.get("urgency", "MEDIUM")
             
-            if confidence < 0.6:
-                logger.info(f"Skipping {symbol} - low confidence: {confidence}")
+            logger.info(f"🤖 GROK'S DECISION: {action_type} {symbol}")
+            logger.info(f"   📊 Confidence: {confidence*100:.1f}%")
+            logger.info(f"   ⏱️  Urgency: {urgency}")
+            logger.info(f"   🎯 Side: {trade.get('side', 'N/A').upper()}")
+            logger.info(f"   📦 Quantity: {trade.get('qty', 0)} shares")
+            
+            # Only basic sanity checks - trust Grok's judgment completely  
+            if trade.get("qty", 0) <= 0:
+                logger.error(f"❌ Invalid quantity for {symbol}: {trade.get('qty', 0)}")
                 return False
             
-            existing_position = next((p for p in positions if p["symbol"] == symbol), None)
-            if existing_position:
-                logger.info(f"Already have position in {symbol}")
+            if not symbol:
+                logger.error(f"❌ No symbol provided in trade")
                 return False
+                
+            # Log portfolio impact
+            if action_type in ["OPEN", "ADD"]:
+                logger.info(f"📈 INCREASING exposure to {symbol}")
+            elif action_type in ["REDUCE", "CLOSE"]:
+                logger.info(f"📉 REDUCING exposure to {symbol}")
             
-            if len(positions) >= self.config.MAX_POSITIONS:
-                logger.info(f"Max positions ({self.config.MAX_POSITIONS}) reached")
-                return False
+            # Show position change details if available
+            if trade.get("current_qty") is not None and trade.get("target_qty") is not None:
+                logger.info(f"   🔄 Position Change: {trade['current_qty']} → {trade['target_qty']} shares")
             
-            position_size = trade.get("qty", 1) * trade.get("limit_price", 100)
-            max_position_value = account["account_value"] * self.config.MAX_POSITION_SIZE
-            
-            if position_size > max_position_value:
-                logger.info(f"Position size too large for {symbol}: ${position_size} > ${max_position_value}")
-                return False
-            
+            logger.info(f"✅ EXECUTING GROK'S RECOMMENDATION - NO ARTIFICIAL LIMITS")
             return True
             
         except Exception as e:
