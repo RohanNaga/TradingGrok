@@ -175,7 +175,7 @@ class AlpacaTrader:
                     "symbol": order.symbol,
                     "qty": float(order.qty),
                     "side": order.side,
-                    "type": order.order_type,
+                    "order_type": order.order_type,  # Changed from "type" to "order_type"
                     "status": order.status,
                     "limit_price": float(order.limit_price) if order.limit_price else None,
                     "stop_price": float(order.stop_price) if order.stop_price else None,
