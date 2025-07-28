@@ -26,7 +26,20 @@ class AlpacaTrader:
                 "buying_power": float(account.buying_power),
                 "cash": float(account.cash),
                 "day_trade_buying_power": float(getattr(account, 'day_trade_buying_power', account.buying_power)),
-                "pattern_day_trader": getattr(account, 'pattern_day_trader', False)
+                "pattern_day_trader": getattr(account, 'pattern_day_trader', False),
+                "equity": float(account.equity),
+                "last_equity": float(account.last_equity),
+                "long_market_value": float(account.long_market_value),
+                "short_market_value": float(account.short_market_value),
+                "initial_margin": float(getattr(account, 'initial_margin', 0)),
+                "maintenance_margin": float(getattr(account, 'maintenance_margin', 0)),
+                "sma": float(getattr(account, 'sma', 0)),  # Special Memorandum Account
+                "daytrade_count": int(getattr(account, 'daytrade_count', 0)),
+                "status": account.status,
+                "account_blocked": account.account_blocked,
+                "trade_suspended_by_user": account.trade_suspended_by_user,
+                "trading_blocked": account.trading_blocked,
+                "transfers_blocked": account.transfers_blocked
             }
         except Exception as e:
             logger.error(f"Error getting account info: {e}")

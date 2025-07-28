@@ -67,11 +67,23 @@ class GrokAnalyzer:
         account_summary = "No account info provided"
         if account_info:
             account_summary = f"""
+ACCOUNT STATUS: {account_info.get('status', 'UNKNOWN')}
 ACCOUNT VALUE: ${account_info.get('account_value', 0):,.2f}
-BUYING POWER: ${account_info.get('buying_power', 0):,.2f}
-CASH: ${account_info.get('cash', 0):,.2f}
+EQUITY: ${account_info.get('equity', 0):,.2f}
+BUYING POWER: ${account_info.get('buying_power', 0):,.2f} (Available for new trades)
+CASH: ${account_info.get('cash', 0):,.2f} (Settled funds)
 DAY TRADE BUYING POWER: ${account_info.get('day_trade_buying_power', 0):,.2f}
-PORTFOLIO VALUE: ${account_info.get('portfolio_value', 0):,.2f}"""
+LONG MARKET VALUE: ${account_info.get('long_market_value', 0):,.2f}
+SHORT MARKET VALUE: ${account_info.get('short_market_value', 0):,.2f}
+INITIAL MARGIN: ${account_info.get('initial_margin', 0):,.2f}
+MAINTENANCE MARGIN: ${account_info.get('maintenance_margin', 0):,.2f}
+SMA (Special Memorandum Account): ${account_info.get('sma', 0):,.2f}
+DAY TRADES COUNT: {account_info.get('daytrade_count', 0)}/3 (Pattern day trader: {account_info.get('pattern_day_trader', False)})
+
+⚠️ TRADING RESTRICTIONS:
+- Account Blocked: {account_info.get('account_blocked', False)}
+- Trading Blocked: {account_info.get('trading_blocked', False)}
+- Transfers Blocked: {account_info.get('transfers_blocked', False)}"""
 
         # Format current positions
         positions_summary = "NO CURRENT POSITIONS - STARTING FRESH"
@@ -155,11 +167,19 @@ IMPORTANT: These errors show what went wrong in recent trades. Adjust your recom
         
         🎯 PORTFOLIO MANAGEMENT INSTRUCTIONS:
         
+        ⚠️ CRITICAL BUYING POWER CONSTRAINTS:
+        - You MUST check available BUYING POWER before recommending any BUY trades
+        - If buying power is low, focus on CLOSING or REDUCING positions first
+        - Open sell orders lock up shares - check "LOCKED SHARES IN SELL ORDERS" section
+        - DO NOT recommend trades that exceed available buying power
+        - Consider the total cost of all recommended buys: (price × quantity) must be < buying power
+        
         1. ANALYZE CURRENT POSITIONS: Look at each existing position's P&L and performance
         2. MAKE SPECIFIC ACTIONS: For each stock, decide OPEN/ADD/REDUCE/CLOSE
         3. USE EXACT QUANTITIES: Always specify current_qty (from positions above) and target_qty
         4. BE AGGRESSIVE: Use full buying power for high-conviction plays
         5. SCALE INTELLIGENTLY: Add to winners, trim losers, rotate based on catalysts
+        6. OPTIMIZE PORTFOLIO: Ensure the portfolio consists of your highest confidence and highest return predictions
 
         TRADING PHILOSOPHY: MAXIMUM PROFIT SPEED IS EVERYTHING. Act decisively on breaking news, earnings momentum, and fundamental catalysts. 
         Take concentrated positions in high-conviction opportunities. Risk big to win big, but be strategic about risk management.
