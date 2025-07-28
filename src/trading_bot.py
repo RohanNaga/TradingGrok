@@ -134,8 +134,16 @@ class TradingBot:
             # Get account info and current positions to pass to analyzer
             account_info = self.alpaca_trader.get_account_info()
             current_positions = self.alpaca_trader.get_positions()
+            open_orders = self.alpaca_trader.get_open_orders()
             
-            analysis = await self.grok_analyzer.analyze_market(account_info, current_positions)
+            # Log current state for debugging
+            logger.info(f"📊 Portfolio State - Positions: {len(current_positions)}, Open Orders: {len(open_orders)}")
+            for pos in current_positions:
+                logger.info(f"   - {pos['symbol']}: {pos['qty']} shares")
+            for order in open_orders:
+                logger.info(f"   - Order: {order['side']} {order['qty']} {order['symbol']} ({order['order_type']})")
+            
+            analysis = await self.grok_analyzer.analyze_market(account_info, current_positions, open_orders)
             if not analysis:
                 logger.warning("No analysis received from Grok")
                 return

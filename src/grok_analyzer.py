@@ -34,12 +34,12 @@ class GrokAnalyzer:
         """Clear trade errors after they've been sent to Grok"""
         self.trade_errors.clear()
         
-    async def analyze_market(self, account_info: Optional[Dict] = None, current_positions: Optional[List] = None) -> Optional[Dict]:
+    async def analyze_market(self, account_info: Optional[Dict] = None, current_positions: Optional[List] = None, open_orders: Optional[List] = None) -> Optional[Dict]:
         """
         Queries Grok for market analysis and trading recommendations
         """
         try:
-            prompt = self._build_analysis_prompt(account_info, current_positions)
+            prompt = self._build_analysis_prompt(account_info, current_positions, open_orders)
             
             response = await self._call_grok_api(prompt)
             if not response:
@@ -57,7 +57,7 @@ class GrokAnalyzer:
             logger.error(f"Traceback: {traceback.format_exc()}")
             return None
     
-    def _build_analysis_prompt(self, account_info: Optional[Dict] = None, current_positions: Optional[List] = None) -> str:
+    def _build_analysis_prompt(self, account_info: Optional[Dict] = None, current_positions: Optional[List] = None, open_orders: Optional[List] = None) -> str:
         """
         Build comprehensive prompt for Grok analysis
         """
@@ -92,6 +92,33 @@ PORTFOLIO VALUE: ${account_info.get('portfolio_value', 0):,.2f}"""
 CURRENT POSITIONS ({len(current_positions)} total, ${total_position_value:,.2f} deployed):
 {"".join(positions_list)}"""
 
+        # Format open orders
+        orders_summary = ""
+        if open_orders:
+            orders_list = []
+            locked_shares = {}  # Track shares locked in open orders
+            for order in open_orders:
+                symbol = order.get('symbol', 'UNKNOWN')
+                side = order.get('side', 'unknown')
+                qty = int(order.get('qty', 0))
+                order_type = order.get('order_type', 'unknown')
+                
+                # Track locked shares for sell orders
+                if side == 'sell':
+                    locked_shares[symbol] = locked_shares.get(symbol, 0) + qty
+                
+                orders_list.append(f"""
+  {symbol}: {side.upper()} {qty} shares ({order_type})""")
+            
+            orders_summary = f"""
+
+OPEN ORDERS ({len(open_orders)} pending):
+{"".join(orders_list)}
+
+⚠️  LOCKED SHARES IN SELL ORDERS:"""
+            for symbol, locked_qty in locked_shares.items():
+                orders_summary += f"\n  {symbol}: {locked_qty} shares locked (unavailable for new sell orders)"
+
         # Format trade errors for feedback
         errors_summary = ""
         if self.trade_errors:
@@ -106,7 +133,8 @@ CURRENT POSITIONS ({len(current_positions)} total, ${total_position_value:,.2f} 
 {"".join(errors_list)}
 
 IMPORTANT: These errors show what went wrong in recent trades. Adjust your recommendations accordingly:
-- If "insufficient qty available", the actual position size is smaller than you thought
+- If "insufficient qty available", check for LOCKED SHARES in open sell orders above
+- The "available" quantity in error messages is AFTER accounting for open orders
 - If "insufficient buying power", reduce position sizes or wait for settled funds
 - Update your understanding of current positions based on these errors"""
 
@@ -123,7 +151,7 @@ IMPORTANT: These errors show what went wrong in recent trades. Adjust your recom
         
         {account_summary}
         
-        {positions_summary}{errors_summary}
+        {positions_summary}{orders_summary}{errors_summary}
         
         🎯 PORTFOLIO MANAGEMENT INSTRUCTIONS:
         
