@@ -80,7 +80,8 @@ class AlpacaTrader:
             
             logger.info(f"🎯 Executing {action_type}: {side.upper()} {qty} shares of {symbol}")
             
-            if self._can_execute_trade(symbol, side, qty):
+            can_execute, error_msg = self._can_execute_trade(symbol, side, qty)
+            if can_execute:
                 # Use bracket orders for entries with stop loss (both long and short)
                 if action_type in ["OPEN", "ADD"] and "stop_loss" in trade_signal:
                     order_params = {
@@ -122,20 +123,21 @@ class AlpacaTrader:
                     logger.info(f"📊 {position_type} order submitted: {symbol} {side} {qty} shares")
                 
                 return True, "Success"
+            else:
+                # Return the specific error from _can_execute_trade
+                return False, error_msg
                 
         except Exception as e:
             error_msg = str(e)
             logger.error(f"Error executing trade for {trade_signal.get('symbol', 'unknown')}: {error_msg}")
             return False, error_msg
-        
-        return False, "Trade execution failed: unknown error"
     
-    def _can_execute_trade(self, symbol: str, side: str, qty: int) -> bool:
+    def _can_execute_trade(self, symbol: str, side: str, qty: int) -> tuple[bool, str]:
         """Check if we can execute the trade - minimal safety checks only"""
         try:
             account = self.get_account_info()
             if not account:
-                return False
+                return False, "Failed to get account information"
             
             # Check position availability for sell orders
             if side == "sell":
@@ -148,8 +150,12 @@ class AlpacaTrader:
                         break
                 
                 if qty > available_qty:
-                    logger.error(f"Insufficient quantity for {symbol}: requested {qty}, available {available_qty}")
-                    return False
+                    if available_qty == 0:
+                        error_msg = f"Cannot sell {symbol}: You don't own any shares. To go short, use a SHORT action instead of SELL."
+                    else:
+                        error_msg = f"Insufficient quantity for {symbol}: requested {qty}, available {available_qty}"
+                    logger.error(error_msg)
+                    return False, error_msg
             
             # Check buying power for buy orders
             if side == "buy":
@@ -157,14 +163,18 @@ class AlpacaTrader:
                 if latest_trade and latest_trade.price:
                     estimated_cost = float(latest_trade.price) * qty
                     if estimated_cost > account["buying_power"]:
-                        logger.warning(f"Insufficient buying power for {symbol}: need ${estimated_cost}, have ${account['buying_power']}")
-                        return False
+                        error_msg = f"Insufficient buying power for {symbol}: need ${estimated_cost:,.2f}, have ${account['buying_power']:,.2f}"
+                        logger.warning(error_msg)
+                        return False, error_msg
+                else:
+                    return False, f"Could not get latest price for {symbol}"
             
-            return True
+            return True, "Trade can be executed"
             
         except Exception as e:
-            logger.error(f"Error checking trade eligibility: {e}")
-            return False
+            error_msg = f"Error checking trade eligibility: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
     
     def _set_stop_loss(self, symbol: str, qty: int, stop_price: float, original_side: str):
         """

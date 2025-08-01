@@ -141,14 +141,20 @@ OPEN ORDERS ({len(open_orders)} pending):
             
             errors_summary = f"""
         
-⚠️  RECENT TRADE EXECUTION ERRORS (Learn from these):
+⚠️  RECENT TRADE EXECUTION ERRORS (CRITICAL - ADJUST YOUR STRATEGY):
 {"".join(errors_list)}
 
-IMPORTANT: These errors show what went wrong in recent trades. Adjust your recommendations accordingly:
-- If "insufficient qty available", check for LOCKED SHARES in open sell orders above
-- The "available" quantity in error messages is AFTER accounting for open orders
-- If "insufficient buying power", reduce position sizes or wait for settled funds
-- Update your understanding of current positions based on these errors"""
+🚨 ERROR RESOLUTION GUIDANCE:
+- "Insufficient quantity for SYMBOL: requested X, available 0" → You tried to SELL/SHORT a stock you don't own. Either:
+  a) Switch to LONG (buy) if bullish
+  b) Skip this trade entirely
+  c) For shorts, ensure margin account is enabled
+  
+- "Insufficient buying power" → Reduce position sizes or close existing positions first
+- "Available quantity" in errors accounts for LOCKED shares in open orders
+- Check the OPEN ORDERS section above to see what shares are already committed
+
+ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
 
         return f"""
         You are an EXPERT AGGRESSIVE portfolio manager with complete authority over a ${account_info.get('account_value', 100000):,.0f} trading account.
