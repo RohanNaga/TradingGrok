@@ -219,12 +219,15 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
         
         📰 MANDATORY WEB SEARCH REQUIREMENTS:
         YOU MUST USE YOUR LIVE SEARCH CAPABILITIES TO:
-        1. Search for breaking news on ALL stocks you're considering
-        2. Check current market sentiment and analyst ratings 
-        3. Find earnings announcements, product launches, and company updates
-        4. Monitor social media buzz and viral trends
-        5. Verify current stock prices and market conditions
+        1. DISCOVER NEW TRADING OPPORTUNITIES: Search for "stocks surging today", "trending stocks", "biggest movers"
+        2. Find EMERGING COMPANIES: Search for "hot IPOs", "small cap tech breakouts", "viral stock picks"
+        3. Search for breaking news on ALL stocks you're considering
+        4. Check current market sentiment and analyst ratings 
+        5. Find earnings announcements, product launches, and company updates
+        6. Monitor social media buzz: "stocks trending on Reddit", "WallStreetBets favorites", "FinTwit momentum"
+        7. Verify current stock prices and market conditions
         
+        🚀 ACTIVELY HUNT FOR NEW OPPORTUNITIES - Don't just analyze the provided list!
         ⚠️ DO NOT make any trading decisions without first searching for the latest information!
         
         ANALYSIS PRIORITIES (in order):
@@ -282,14 +285,25 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
         - EVENT-DRIVEN OPPORTUNITIES: Earnings, launches, partnerships creating momentum
         
         🔎 EXAMPLE WEB SEARCHES TO PERFORM:
-        Before making ANY trade recommendations, search for:
+        
+        OPPORTUNITY DISCOVERY SEARCHES (DO THESE FIRST):
+        - "stocks up 10% today tech sector"
+        - "trending stocks X Twitter Reddit"
+        - "unusual options activity tech stocks"
+        - "stocks hitting 52 week highs technology"
+        - "momentum stocks breaking out today"
+        - "small cap tech stocks surging"
+        - "IPO stocks gaining momentum"
+        - "viral stocks social media"
+        
+        SPECIFIC STOCK RESEARCH:
         - "NVDA earnings results latest"
         - "Tesla news today Elon Musk"  
         - "PLTR stock analyst upgrades"
-        - "tech stocks trending on X Twitter"
+        - "[New stock you found] news catalyst"
         - "AI stocks news breakthrough"
-        - "semiconductor shortage update"
-        - "Federal Reserve interest rate decision"
+        - "semiconductor sector movers today"
+        - "biotech stocks FDA approval"
         - "[Company] product launch announcement"
         
         YOUR PORTFOLIO MANAGEMENT ACTIONS:
@@ -391,12 +405,17 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
         If searches don't reveal opportunities, recommend waiting for better setups.
         
         STOCK SELECTION CRITERIA:
-        - PRIMARY: Any liquid tech stock with SEARCHABLE catalysts and news
+        - DISCOVERY FIRST: Use search to find NEW opportunities beyond the provided watchlist
+        - PRIMARY: Any liquid tech stock with SEARCHABLE catalysts (including newly discovered ones)
+        - EMERGING PLAYS: Small/mid-cap tech stocks showing unusual momentum in search results
         - SECONDARY: Non-tech only if search reveals exceptional opportunity (85%+ confidence)
         - LIQUIDITY: Verify through search that stock has adequate volume
         - CATALYSTS: Must be validated through web search, not speculation
         
-        REMEMBER: NO TRADES WITHOUT SEARCH VALIDATION! Use your live search access aggressively!
+        💡 PORTFOLIO EXPANSION: Your goal is to find the BEST opportunities across the ENTIRE market,
+        not just trade the same familiar stocks. Use search to discover hidden gems!
+        
+        REMEMBER: NO TRADES WITHOUT SEARCH VALIDATION! Hunt aggressively for new opportunities!
         """
     
     async def _call_grok_api(self, prompt: str, max_retries: int = 3) -> Optional[str]:
