@@ -183,6 +183,22 @@ class TradingBot:
             logger.info(f"Current positions: {len(current_positions)}")
             
             for trade in analysis.get("trades", []):
+                action_type = trade.get('action_type', 'UNKNOWN')
+                
+                # Handle CANCEL actions separately
+                if action_type == 'CANCEL':
+                    order_id = trade.get('order_id')
+                    if order_id:
+                        success = self.alpaca_trader.cancel_order(order_id)
+                        if success:
+                            logger.info(f"✅ Successfully cancelled order {order_id} for {trade['symbol']}")
+                        else:
+                            logger.error(f"❌ Failed to cancel order {order_id} for {trade['symbol']}")
+                    else:
+                        logger.error(f"Missing order_id for CANCEL action on {trade['symbol']}")
+                    continue
+                
+                # Handle regular trade actions
                 if await self.should_execute_trade(trade, current_positions, account_info):
                     success, error_msg = self.alpaca_trader.execute_trade(trade)
                     if success:

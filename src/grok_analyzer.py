@@ -124,8 +124,9 @@ CURRENT POSITIONS ({len(current_positions)} total, ${total_position_value:,.2f} 
                 if side == 'sell':
                     locked_shares[symbol] = locked_shares.get(symbol, 0) + qty
                 
+                order_id = order.get('id', 'unknown')
                 orders_list.append(f"""
-  {symbol}: {side.upper()} {qty} shares ({order_type})""")
+  {symbol}: {side.upper()} {qty} shares ({order_type}) [Order ID: {order_id}]""")
             
             orders_summary = f"""
 
@@ -201,6 +202,12 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
         - Open sell orders lock up shares - check "LOCKED SHARES IN SELL ORDERS" section
         - DO NOT recommend trades that exceed available buying power
         - Consider the total cost of all recommended buys: (price × quantity) must be < buying power
+        
+        📋 ORDER MANAGEMENT RULES:
+        - ALWAYS review the OPEN ORDERS section for pending trades
+        - If your web search reveals news that changes the thesis, CANCEL outdated orders
+        - Cancel orders if: price moved significantly, negative news emerged, better opportunity found
+        - Canceling frees up buying power and locked shares immediately
         
         1. ANALYZE CURRENT POSITIONS: Look at each existing position's P&L and performance
         2. MAKE SPECIFIC ACTIONS: For each stock, decide OPEN/ADD/REDUCE/CLOSE
@@ -311,7 +318,7 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
         - "[Company] product launch announcement"
         
         YOUR PORTFOLIO MANAGEMENT ACTIONS:
-        You have SIX action types available for each stock:
+        You have SEVEN action types available:
         
         LONG POSITIONS:
         1. OPEN: Start a new LONG position (buy stock, current_qty=0, target_qty>0)
@@ -322,6 +329,12 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
         SHORT POSITIONS:
         5. SHORT: Start a new SHORT position (sell short, current_qty=0, target_qty<0)
         6. COVER: Close SHORT position (buy to cover, target_qty=0 from negative)
+        
+        ORDER MANAGEMENT:
+        7. CANCEL: Cancel pending orders if your thesis has changed or better opportunities exist
+           - Review the OPEN ORDERS section above
+           - If market conditions or news changes your view, CANCEL outdated orders
+           - This frees up buying power and locked shares for new opportunities
         
         For each action, specify:
         - EXACT quantities (current_qty and target_qty - negative for short positions)
@@ -349,7 +362,7 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
             "actions": [
                 {{{{
                     "symbol": "STOCK_SYMBOL",
-                    "action": "OPEN/ADD/REDUCE/CLOSE/SHORT/COVER",
+                    "action": "OPEN/ADD/REDUCE/CLOSE/SHORT/COVER/CANCEL",
                     "current_qty": 0,
                     "target_qty": 100,
                     "qty_change": 100,
@@ -390,7 +403,10 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
         📦 COVER: Close ROKU short position (buy to cover)
         {{"symbol": "ROKU", "action": "COVER", "current_qty": -40, "target_qty": 0, "qty_change": 40}}
         
-        ⚠️  CRITICAL: Always include current_qty, target_qty, and qty_change for each action!
+        ❌ CANCEL: Cancel pending order due to changed market conditions
+        {{"symbol": "AMZN", "action": "CANCEL", "order_id": "from_open_orders_section", "reasoning": "New negative catalyst found via search"}}
+        
+        ⚠️  CRITICAL: Always include current_qty, target_qty, and qty_change for each action (except CANCEL)!
         
         URGENCY CLASSIFICATION:
         - IMMEDIATE: Breaking news/viral moments happening RIGHT NOW (trade within 1-2 hours)
@@ -546,6 +562,20 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
             for action in analysis.get("actions", []):
                 action_type = action.get("action", "OPEN")
                 symbol = action["symbol"]
+                
+                # Handle CANCEL action separately
+                if action_type == "CANCEL":
+                    trade = {
+                        "symbol": symbol,
+                        "action_type": "CANCEL",
+                        "order_id": action.get("order_id"),
+                        "reasoning": action.get("reasoning", "Thesis changed based on new information")
+                    }
+                    logger.info(f"❌ CANCEL ORDER: {symbol} - Order ID: {action.get('order_id')}")
+                    logger.info(f"📝 Reason: {trade['reasoning']}")
+                    formatted_actions.append(trade)
+                    continue
+                
                 current_qty = action.get("current_qty", 0)
                 target_qty = action.get("target_qty", 0)
                 qty_change = action.get("qty_change", target_qty - current_qty)
