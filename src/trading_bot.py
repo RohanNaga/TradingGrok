@@ -21,12 +21,12 @@ class TradingBot:
             logger.error(f"Configuration error: {e}")
             raise
             
-        self.grok_analyzer = GrokAnalyzer(self.config.GROK_API_KEY)
         self.alpaca_trader = AlpacaTrader(
             self.config.ALPACA_API_KEY,
             self.config.ALPACA_SECRET_KEY,
             self.config.ALPACA_BASE_URL
         )
+        self.grok_analyzer = GrokAnalyzer(self.config.GROK_API_KEY, self.alpaca_trader)
         self.trading_active = False
         self.last_analysis = None
         self.est = pytz.timezone('US/Eastern')
@@ -136,14 +136,40 @@ class TradingBot:
             current_positions = self.alpaca_trader.get_positions()
             open_orders = self.alpaca_trader.get_open_orders()
             
+            # Collect market data for all relevant symbols
+            market_data = {}
+            symbols_to_check = set()
+            
+            # Add symbols from current positions
+            for pos in current_positions:
+                symbols_to_check.add(pos['symbol'])
+            
+            # Add common tech stocks for monitoring
+            tech_stocks = ['NVDA', 'AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'AMD', 
+                          'PLTR', 'SNOW', 'UBER', 'SQ', 'SHOP', 'SNAP', 'CRWD', 'NET']
+            symbols_to_check.update(tech_stocks)
+            
+            # Get latest prices for all symbols
+            for symbol in symbols_to_check:
+                try:
+                    latest_trade = self.alpaca_trader.api.get_latest_trade(symbol)
+                    if latest_trade and latest_trade.price:
+                        market_data[symbol] = {
+                            'price': float(latest_trade.price),
+                            'timestamp': latest_trade.timestamp.isoformat() if hasattr(latest_trade.timestamp, 'isoformat') else str(latest_trade.timestamp)
+                        }
+                except Exception as e:
+                    logger.warning(f"Could not get price for {symbol}: {e}")
+            
             # Log current state for debugging
             logger.info(f"📊 Portfolio State - Positions: {len(current_positions)}, Open Orders: {len(open_orders)}")
             for pos in current_positions:
                 logger.info(f"   - {pos['symbol']}: {pos['qty']} shares")
             for order in open_orders:
                 logger.info(f"   - Order: {order['side']} {order['qty']} {order['symbol']} ({order['order_type']})")
+            logger.info(f"📈 Market Data collected for {len(market_data)} symbols")
             
-            analysis = await self.grok_analyzer.analyze_market(account_info, current_positions, open_orders)
+            analysis = await self.grok_analyzer.analyze_market(account_info, current_positions, open_orders, market_data)
             if not analysis:
                 logger.warning("No analysis received from Grok")
                 return

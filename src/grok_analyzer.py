@@ -8,11 +8,12 @@ from .logger import setup_logger
 logger = setup_logger("grok_analyzer")
 
 class GrokAnalyzer:
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, alpaca_trader=None):
         self.api_key = api_key
         self.base_url = "https://api.x.ai/v1/chat/completions"
         self.client = None
         self.trade_errors = []  # Track recent trade errors for feedback
+        self.alpaca_trader = alpaca_trader  # For market data access
         
         if not self.api_key:
             logger.error("Grok API key is missing!")
@@ -34,12 +35,12 @@ class GrokAnalyzer:
         """Clear trade errors after they've been sent to Grok"""
         self.trade_errors.clear()
         
-    async def analyze_market(self, account_info: Optional[Dict] = None, current_positions: Optional[List] = None, open_orders: Optional[List] = None) -> Optional[Dict]:
+    async def analyze_market(self, account_info: Optional[Dict] = None, current_positions: Optional[List] = None, open_orders: Optional[List] = None, market_data: Optional[Dict] = None) -> Optional[Dict]:
         """
         Queries Grok for market analysis and trading recommendations
         """
         try:
-            prompt = self._build_analysis_prompt(account_info, current_positions, open_orders)
+            prompt = self._build_analysis_prompt(account_info, current_positions, open_orders, market_data)
             
             response = await self._call_grok_api(prompt)
             if not response:
@@ -57,7 +58,7 @@ class GrokAnalyzer:
             logger.error(f"Traceback: {traceback.format_exc()}")
             return None
     
-    def _build_analysis_prompt(self, account_info: Optional[Dict] = None, current_positions: Optional[List] = None, open_orders: Optional[List] = None) -> str:
+    def _build_analysis_prompt(self, account_info: Optional[Dict] = None, current_positions: Optional[List] = None, open_orders: Optional[List] = None, market_data: Optional[Dict] = None) -> str:
         """
         Build comprehensive prompt for Grok analysis
         """
@@ -156,6 +157,15 @@ OPEN ORDERS ({len(open_orders)} pending):
 
 ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
 
+        # Format market data for real-time prices
+        market_data_summary = ""
+        if market_data:
+            market_data_summary = """
+📊 REAL-TIME MARKET DATA:
+"""
+            for symbol, data in market_data.items():
+                market_data_summary += f"  {symbol}: ${data.get('price', 'N/A'):.2f} (Last updated: {data.get('timestamp', 'N/A')})\n"
+
         return f"""
         You are an EXPERT AGGRESSIVE portfolio manager with complete authority over a ${account_info.get('account_value', 100000):,.0f} trading account.
         Current time: {current_time}
@@ -167,9 +177,17 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
         - Use aggressive position sizing on high-conviction opportunities
         - Exit long-term losing positions quickly to preserve capital for better opportunities
         
+        🔍 LIVE SEARCH ENABLED: You have real-time access to:
+        - Current market prices and trading data
+        - Breaking news and market developments
+        - Social media sentiment and trending topics on X (Twitter)
+        - Company announcements and earnings reports
+        USE THIS ACCESS to make informed decisions based on the latest information!
+        
         {account_summary}
         
         {positions_summary}{orders_summary}{errors_summary}
+        {market_data_summary}
         
         🎯 PORTFOLIO MANAGEMENT INSTRUCTIONS:
         
@@ -199,13 +217,23 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
         - EXPLORE smaller tech companies with breakthrough technologies or viral adoption
         - Consider non-tech only for extraordinary opportunities (85%+ confidence required)
         
+        📰 MANDATORY WEB SEARCH REQUIREMENTS:
+        YOU MUST USE YOUR LIVE SEARCH CAPABILITIES TO:
+        1. Search for breaking news on ALL stocks you're considering
+        2. Check current market sentiment and analyst ratings 
+        3. Find earnings announcements, product launches, and company updates
+        4. Monitor social media buzz and viral trends
+        5. Verify current stock prices and market conditions
+        
+        ⚠️ DO NOT make any trading decisions without first searching for the latest information!
+        
         ANALYSIS PRIORITIES (in order):
-        1. BREAKING NEWS & VIRAL CATALYSTS (Last 24-48 hours):
+        1. BREAKING NEWS & VIRAL CATALYSTS (USE WEB SEARCH - Last 24-48 hours):
+        - Search for: "[stock symbol] news today", "[company] earnings", "[stock] analyst upgrade"
         - Earnings surprises, guidance updates, analyst upgrades/downgrades
         - Product launches, partnerships, regulatory changes
-        - SOCIAL MEDIA EXPLOSIONS: Influencer endorsements, viral campaigns, celebrity partnerships
-        - CULTURAL MOMENTUM: Meme stocks, GenZ trends, social media buzz (TikTok, Instagram, Twitter/X)
-        - CULTURAL CATALYSTS: Celebrity endorsements, viral campaigns, social media explosions
+        - SOCIAL MEDIA EXPLOSIONS: Search X/Twitter for trending stocks and sentiment
+        - CULTURAL MOMENTUM: Meme stocks, GenZ trends, social media buzz
         - Sector rotation triggers, Fed policy, geopolitical events
         
         2. CULTURAL & SOCIAL MOMENTUM PATTERNS:
@@ -252,6 +280,17 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
         - CROSS-PLATFORM AMPLIFICATION: Stories gaining traction across multiple channels
         - DEMOGRAPHIC SHIFTS: Consumer behavior changes driving sector rotation
         - EVENT-DRIVEN OPPORTUNITIES: Earnings, launches, partnerships creating momentum
+        
+        🔎 EXAMPLE WEB SEARCHES TO PERFORM:
+        Before making ANY trade recommendations, search for:
+        - "NVDA earnings results latest"
+        - "Tesla news today Elon Musk"  
+        - "PLTR stock analyst upgrades"
+        - "tech stocks trending on X Twitter"
+        - "AI stocks news breakthrough"
+        - "semiconductor shortage update"
+        - "Federal Reserve interest rate decision"
+        - "[Company] product launch announcement"
         
         YOUR PORTFOLIO MANAGEMENT ACTIONS:
         You have SIX action types available for each stock:
@@ -302,12 +341,13 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
                     "stop_loss": 92.00,
                     "position_size_pct": 0.35,
                     "holding_period_days": 10,
-                    "news_catalyst": "Specific breaking news in last 48hrs",
-                    "fundamental_thesis": "Why this position/adjustment makes sense",
-                    "technical_setup": "Chart pattern/momentum confirmation",
+                    "news_catalyst": "MUST BE from your web search results - specific breaking news",
+                    "fundamental_thesis": "Based on search findings - why this position makes sense",
+                    "technical_setup": "Chart pattern/momentum from your market analysis",
                     "confidence": 0.85,
                     "urgency": "IMMEDIATE/HIGH/MEDIUM/LOW",
-                    "reasoning": "Detailed explanation of this specific action"
+                    "web_search_summary": "Key findings from your web searches that support this trade",
+                    "reasoning": "Detailed explanation citing specific search results"
                 }}}}
             ]
         }}}}
@@ -340,16 +380,23 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
         - MEDIUM: Strong setup, no immediate catalyst, swing trade opportunity
         - LOW: Longer-term positioning, market conditions unfavorable for aggression
         
-        EXECUTE WITH CONVICTION: Only recommend trades you'd bet serious money on. 
-        If market conditions don't warrant aggressive positions, recommend cash/wait.
+        ⚡ CRITICAL TRADING RULES:
+        1. ALWAYS perform web searches BEFORE recommending any trades
+        2. CITE specific news/data from your searches in the reasoning
+        3. If you can't find recent catalysts through search, DON'T trade that stock
+        4. Base entry/exit prices on CURRENT market data from searches
+        5. Your "news_catalyst" MUST come from actual search results, not assumptions
+        
+        EXECUTE WITH CONVICTION: Only recommend trades backed by real search data. 
+        If searches don't reveal opportunities, recommend waiting for better setups.
         
         STOCK SELECTION CRITERIA:
-        - PRIMARY: Any liquid tech stock (large, mid, small cap) with strong catalysts
-        - SECONDARY: Non-tech only if 85%+ confidence and exceptional opportunity
-        - LIQUIDITY: Minimum 500K daily volume to ensure proper execution
-        - CATALYSTS: Focus on stocks with clear fundamental or technical drivers
+        - PRIMARY: Any liquid tech stock with SEARCHABLE catalysts and news
+        - SECONDARY: Non-tech only if search reveals exceptional opportunity (85%+ confidence)
+        - LIQUIDITY: Verify through search that stock has adequate volume
+        - CATALYSTS: Must be validated through web search, not speculation
         
-        REMEMBER: Stay alert for breaking news, cultural shifts, and viral moments that create trading opportunities!
+        REMEMBER: NO TRADES WITHOUT SEARCH VALIDATION! Use your live search access aggressively!
         """
     
     async def _call_grok_api(self, prompt: str, max_retries: int = 3) -> Optional[str]:
@@ -372,7 +419,7 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are Grok, an expert AI trading analyst specializing in tech stock swing trading."
+                    "content": "You are Grok, an expert AI trading analyst specializing in tech stock swing trading with real-time market access."
                 },
                 {
                     "role": "user", 
@@ -381,7 +428,17 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
             ],
             "model": "grok-4-latest",
             "stream": False,
-            "temperature": 0.3
+            "temperature": 0.3,
+            "search_parameters": {
+                "mode": "on",
+                "sources": [
+                    {"type": "web"},
+                    {"type": "x"},
+                    {"type": "news"}
+                ],
+                "return_citations": False,
+                "max_search_results": 20
+            }
         }
         
         for attempt in range(max_retries):

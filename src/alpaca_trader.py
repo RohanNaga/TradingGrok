@@ -149,11 +149,10 @@ class AlpacaTrader:
                         available_qty = int(abs(float(pos["qty"])))
                         break
                 
-                if qty > available_qty:
-                    if available_qty == 0:
-                        error_msg = f"Cannot sell {symbol}: You don't own any shares. To go short, use a SHORT action instead of SELL."
-                    else:
-                        error_msg = f"Insufficient quantity for {symbol}: requested {qty}, available {available_qty}"
+                # Only check quantity if we have a long position (available_qty > 0)
+                # If available_qty is 0, this could be a short sell which is allowed
+                if available_qty > 0 and qty > available_qty:
+                    error_msg = f"Insufficient quantity for {symbol}: requested {qty}, available {available_qty}"
                     logger.error(error_msg)
                     return False, error_msg
             
