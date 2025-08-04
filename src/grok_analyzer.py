@@ -44,7 +44,11 @@ class GrokAnalyzer:
             
             response = await self._call_grok_api(prompt)
             if not response:
-                return None
+                logger.warning("🔄 First attempt failed - trying with reduced search mode")
+                # Try once more with auto search mode instead of forced search
+                response = await self._call_grok_api(prompt, use_reduced_search=True)
+                if not response:
+                    return None
             
             # Clear trade errors after sending them to Grok
             self.clear_trade_errors()
@@ -418,7 +422,7 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
         REMEMBER: NO TRADES WITHOUT SEARCH VALIDATION! Hunt aggressively for new opportunities!
         """
     
-    async def _call_grok_api(self, prompt: str, max_retries: int = 3) -> Optional[str]:
+    async def _call_grok_api(self, prompt: str, max_retries: int = 3, use_reduced_search: bool = False) -> Optional[str]:
         """
         Make API call to Grok with retry logic and exponential backoff
         """
@@ -427,7 +431,8 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
             return None
             
         if not self.client:
-            self.client = httpx.AsyncClient(timeout=120.0)
+            # Increased timeout for live search operations
+            self.client = httpx.AsyncClient(timeout=300.0)  # 5 minutes for search-enabled requests
             
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -449,20 +454,21 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
             "stream": False,
             "temperature": 0.3,
             "search_parameters": {
-                "mode": "on",
+                "mode": "auto" if use_reduced_search else "on",
                 "sources": [
                     {"type": "web"},
                     {"type": "x"},
                     {"type": "news"}
                 ],
                 "return_citations": False,
-                "max_search_results": 20
+                "max_search_results": 3 if use_reduced_search else 20
             }
         }
         
         for attempt in range(max_retries):
             try:
                 logger.info(f"🤖 Grok API call attempt {attempt + 1}/{max_retries} - Starting request...")
+                logger.info(f"⏱️ Using extended timeout of 300s for live search operations")
                 
                 start_time = datetime.now()
                 response = await self.client.post(
@@ -495,12 +501,14 @@ ADJUST YOUR NEXT RECOMMENDATIONS TO AVOID THESE ERRORS!"""
             except (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.TimeoutException) as e:
                 duration = (datetime.now() - start_time).total_seconds() if 'start_time' in locals() else 0
                 logger.warning(f"⏰ TIMEOUT on attempt {attempt + 1} after {duration:.1f}s: {type(e).__name__}")
+                logger.info("💡 Tip: Live search operations can take 2-4 minutes. Consider patience or reducing search scope.")
                 if attempt < max_retries - 1:
                     backoff_time = 2 ** attempt
                     logger.warning(f"🔄 Timeout detected - RETRYING in {backoff_time} seconds (attempt {attempt + 2}/{max_retries})")
                     await asyncio.sleep(backoff_time)
                     continue
                 logger.error(f"💀 All {max_retries} retry attempts failed due to timeout - giving up")
+                logger.info("📌 Consider running without live search or with fewer search sources if timeouts persist")
                 return None
                 
             except Exception as e:
